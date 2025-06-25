@@ -6,10 +6,11 @@ import requests
 from typing import List, Literal
 from dataclasses import dataclass, field
 
-# ✅ โหลด API Key จาก secrets
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# ✅ ตั้งค่า API KEY
+openai.api_key = st.secrets["OPENAI_API_KEY"]  # อ่านจาก streamlit secrets
+NEWS_API_KEY = st.secrets["NEWS_API_KEY"]      # อย่าลืมเพิ่มเข้า secrets ด้วยนะ
 
-# 🧠 ประเภทข้อมูล
+# ✅ ประเภทข้อมูล
 Sentiment = Literal["positive", "negative", "neutral"]
 Impact = Literal["high", "medium", "low"]
 Category = Literal["portfolio", "watchlist"]
@@ -31,7 +32,7 @@ class Stock:
     category: Category
     news: List[NewsItem] = field(default_factory=list)
 
-# ✅ วิเคราะห์ sentiment และแปลข่าว ด้วย OpenAI
+# ✅ ใช้ OpenAI วิเคราะห์อารมณ์ + แปลไทย
 def analyze_and_translate(content: str) -> tuple[str, Sentiment]:
     prompt = f"""
 ข่าว: {content}
@@ -45,9 +46,10 @@ def analyze_and_translate(content: str) -> tuple[str, Sentiment]:
     """
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # หรือ "gpt-4" ถ้ามีสิทธิ์ใช้งาน
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
+            timeout=30
         )
         result = response.choices[0].message.content
         translated = result.split("แปลไทย:")[1].split("อารมณ์:")[0].strip()
@@ -56,8 +58,7 @@ def analyze_and_translate(content: str) -> tuple[str, Sentiment]:
     except Exception as e:
         return "❌ แปลไม่สำเร็จ", "neutral"
 
-# ✅ ดึงข่าวจาก NewsAPI
-NEWS_API_KEY = "1947c97709734759b81277ccb7ee8152"  # ← ใช้ key ของคุณ
+# ✅ ดึงข่าวจาก NewsAPI พร้อม fallback ถ้าไม่มี description
 def fetch_news(ticker: str) -> List[NewsItem]:
     url = "https://newsapi.org/v2/everything"
     params = {
@@ -71,7 +72,11 @@ def fetch_news(ticker: str) -> List[NewsItem]:
     articles = response.json().get("articles", [])
     news_items = []
     for article in articles:
-        content = article.get("description") or ""
+        # 🔁 ใช้ description → content → title
+        content = article.get("description") or article.get("content") or article.get("title") or ""
+        if not content:
+            continue  # ข้ามถ้าไม่มีเนื้อหาจริงๆ
+
         translated, sentiment = analyze_and_translate(content)
         news_items.append(NewsItem(
             title=article["title"],
@@ -92,9 +97,9 @@ stocks: List[Stock] = [
     Stock(ticker="MSFT", name="Microsoft Corp.", category="portfolio"),
 ]
 
-# ✅ UI ด้วย Streamlit
+# ✅ Streamlit UI
 st.set_page_config(page_title="📈 Vibe Stock Dashboard", layout="wide")
-st.title("📈 Vibe Stock Tracker (OpenAI-Powered)")
+st.title("📈 Vibe Stock Tracker (OpenAI Powered)")
 
 category_filter = st.radio("เลือกหมวดหมู่", ["portfolio", "watchlist"])
 filtered_stocks = [s for s in stocks if s.category == category_filter]
@@ -102,15 +107,17 @@ filtered_stocks = [s for s in stocks if s.category == category_filter]
 for stock in filtered_stocks:
     with st.expander(f"{stock.name} ({stock.ticker})"):
         if not stock.news:
+            st.write("🔄 กำลังดึงข่าว...")
             stock.news = fetch_news(stock.ticker)
 
-        # 🎯 แสดงข่าวแยกบวก-ลบ
+        # ✅ แบ่งข่าวตาม sentiment
         good_news = [n for n in stock.news if n.sentiment == "positive"]
         bad_news = [n for n in stock.news if n.sentiment == "negative"]
+        neutral_news = [n for n in stock.news if n.sentiment == "neutral"]
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown("### ✅ ข่าวบวก")
+            st.markdown("### ✅ ข่าวเชิงบวก")
             for news in good_news:
                 st.markdown(f"**🟢 {news.title}**")
                 st.caption(news.published_at)
@@ -119,7 +126,16 @@ for stock in filtered_stocks:
                 st.markdown("---")
 
         with col2:
-            st.markdown("### ⚠️ ข่าวลบ")
+            st.markdown("### ⚠️ ข่าวเป็นกลาง")
+            for news in neutral_news:
+                st.markdown(f"**🟡 {news.title}**")
+                st.caption(news.published_at)
+                st.write(news.translated)
+                st.markdown(f"[🔗 อ่านต่อ]({news.url})")
+                st.markdown("---")
+
+        with col3:
+            st.markdown("### ❌ ข่าวลบ")
             for news in bad_news:
                 st.markdown(f"**🔴 {news.title}**")
                 st.caption(news.published_at)
