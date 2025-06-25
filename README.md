@@ -1,7 +1,14 @@
 # Vibe Stock Tracker
 
-A simple script to manage your stock Watchlist and Portfolio, with basic sentiment analysis using mock news.
+A simple Python script that separates your stock **Watchlist** and **Portfolio**, fetches mock news, analyzes basic sentiment, and summarizes key information.
 
-## How to Run
+## 📦 Features
+
+- Separate your stocks into Watchlist and Portfolio
+- Attach mock news with sentiment and impact
+- Simple structure to expand with real APIs or dashboards
+
+## ▶️ How to Run
+
 ```bash
 python main.py
