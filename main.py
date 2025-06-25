@@ -3,10 +3,11 @@
 import requests
 from dataclasses import dataclass, field
 from typing import List, Literal
+from textblob import TextBlob
 import datetime
 
-# ตั้งค่า API KEY ที่นี่
-NEWS_API_KEY = "1947c97709734759b81277ccb7ee8152"  # 🔐 เปลี่ยนตรงนี้เป็น API KEY ของคุณ
+# 🔐 ใส่ API KEY ของคุณจาก NewsAPI.org
+NEWS_API_KEY = "1947c97709734759b81277ccb7ee8152"
 
 # ประเภทข้อมูล
 Sentiment = Literal["positive", "negative", "neutral"]
@@ -30,6 +31,16 @@ class Stock:
     news: List[NewsItem] = field(default_factory=list)
     prediction: str = ""
 
+def analyze_sentiment(text: str) -> Sentiment:
+    blob = TextBlob(text)
+    polarity = blob.sentiment.polarity  # ค่าระหว่าง -1.0 ถึง +1.0
+    if polarity > 0.2:
+        return "positive"
+    elif polarity < -0.2:
+        return "negative"
+    else:
+        return "neutral"
+
 def fetch_real_news(ticker: str) -> List[NewsItem]:
     url = "https://newsapi.org/v2/everything"
     params = {
@@ -44,10 +55,12 @@ def fetch_real_news(ticker: str) -> List[NewsItem]:
     
     news_items = []
     for article in articles:
+        content = article.get("description") or ""
+        sentiment = analyze_sentiment(content)
         news_items.append(NewsItem(
             title=article["title"],
-            content=article.get("description") or "",
-            sentiment="neutral",  # ยังไม่วิเคราะห์จริงในขั้นนี้
+            content=content,
+            sentiment=sentiment,
             impact="medium",
             url=article["url"],
             published_at=article["publishedAt"]
@@ -65,7 +78,7 @@ for stock in stocks:
 def display_summary(stock: Stock):
     print(f"\n[{stock.category.upper()}] {stock.name} ({stock.ticker})")
     for news in stock.news:
-        print(f"- {news.title} [{news.sentiment}, {news.impact}]")
+        print(f"- {news.title} [{news.sentiment}]")
         print(f"  {news.url}")
 
 for stock in stocks:
