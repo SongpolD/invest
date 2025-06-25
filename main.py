@@ -98,6 +98,9 @@ stocks: List[Stock] = [
     Stock(ticker="TSLA", name="Tesla Inc.", category="watchlist"),
     Stock(ticker="NVDA", name="NVIDIA Corporation", category="watchlist"),
     Stock(ticker="MSFT", name="Microsoft Corp.", category="portfolio"),
+    Stock(ticker="HIMS", name="Hims & Hers Health, Inc.", category="watchlist"),
+    Stock(ticker="ABBV", name="AbbVie Inc.", category="watchlist"),
+    Stock(ticker="NVO", name="Novo Nordisk A/S", category="watchlist"),
 ]
 
 # ✅ Streamlit UI
