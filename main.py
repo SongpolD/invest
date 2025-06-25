@@ -1,16 +1,15 @@
 # main.py
 
 import streamlit as st
+import openai
 import requests
-from textblob import TextBlob
-from dataclasses import dataclass, field
 from typing import List, Literal
+from dataclasses import dataclass, field
 
-# ----🔐 API KEYS ----
-NEWS_API_KEY = "1947c97709734759b81277ccb7ee8152"
-HUGGINGFACE_API_KEY = st.secrets["HUGGINGFACE_API_KEY"]
+# ✅ โหลด API Key จาก secrets
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# ----📌 Type Definitions ----
+# 🧠 ประเภทข้อมูล
 Sentiment = Literal["positive", "negative", "neutral"]
 Impact = Literal["high", "medium", "low"]
 Category = Literal["portfolio", "watchlist"]
@@ -32,38 +31,33 @@ class Stock:
     category: Category
     news: List[NewsItem] = field(default_factory=list)
 
-# ----🧠 Sentiment Analysis ----
-def analyze_sentiment(text: str) -> Sentiment:
-    blob = TextBlob(text)
-    polarity = blob.sentiment.polarity
-    if polarity > 0.2:
-        return "positive"
-    elif polarity < -0.2:
-        return "negative"
-    else:
-        return "neutral"
+# ✅ วิเคราะห์ sentiment และแปลข่าว ด้วย OpenAI
+def analyze_and_translate(content: str) -> tuple[str, Sentiment]:
+    prompt = f"""
+ข่าว: {content}
 
-# ----🌐 Translation via HuggingFace API ----
-def translate_to_thai(text: str) -> str:
-    if not text.strip():
-        return ""
+1. แปลข่าวด้านบนเป็นภาษาไทยโดยสรุปให้สั้น ชัดเจน
+2. วิเคราะห์ว่าเนื้อหามีอารมณ์แบบใด: positive, negative หรือ neutral
+
+รูปแบบผลลัพธ์ที่ต้องการ:
+แปลไทย: <แปลข่าว>
+อารมณ์: <positive/negative/neutral>
+    """
     try:
-        headers = {
-            "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {"inputs": text}
-        response = requests.post(
-            "https://api-inference.huggingface.co/models/Helsinki-NLP/opus-mt-en-th",
-            headers=headers,
-            json=payload
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # หรือ "gpt-4" ถ้ามีสิทธิ์ใช้งาน
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
         )
-        result = response.json()
-        return result[0]["translation_text"] if isinstance(result, list) else "⚠️ แปลไม่ได้"
-    except Exception:
-        return "⚠️ แปลไม่ได้"
+        result = response.choices[0].message.content
+        translated = result.split("แปลไทย:")[1].split("อารมณ์:")[0].strip()
+        sentiment = result.split("อารมณ์:")[1].strip().lower()
+        return translated, sentiment
+    except Exception as e:
+        return "❌ แปลไม่สำเร็จ", "neutral"
 
-# ----📰 Fetch News ----
+# ✅ ดึงข่าวจาก NewsAPI
+NEWS_API_KEY = "1947c97709734759b81277ccb7ee8152"  # ← ใช้ key ของคุณ
 def fetch_news(ticker: str) -> List[NewsItem]:
     url = "https://newsapi.org/v2/everything"
     params = {
@@ -78,8 +72,7 @@ def fetch_news(ticker: str) -> List[NewsItem]:
     news_items = []
     for article in articles:
         content = article.get("description") or ""
-        sentiment = analyze_sentiment(content)
-        translated = translate_to_thai(content)
+        translated, sentiment = analyze_and_translate(content)
         news_items.append(NewsItem(
             title=article["title"],
             content=content,
@@ -91,7 +84,7 @@ def fetch_news(ticker: str) -> List[NewsItem]:
         ))
     return news_items
 
-# ----📊 Stocks to Track ----
+# ✅ รายชื่อหุ้น
 stocks: List[Stock] = [
     Stock(ticker="AAPL", name="Apple Inc.", category="portfolio"),
     Stock(ticker="TSLA", name="Tesla Inc.", category="watchlist"),
@@ -99,12 +92,11 @@ stocks: List[Stock] = [
     Stock(ticker="MSFT", name="Microsoft Corp.", category="portfolio"),
 ]
 
-# ----🖥️ Streamlit UI ----
+# ✅ UI ด้วย Streamlit
 st.set_page_config(page_title="📈 Vibe Stock Dashboard", layout="wide")
-st.title("📈 Vibe Stock Tracker Dashboard")
+st.title("📈 Vibe Stock Tracker (OpenAI-Powered)")
 
-category_filter = st.radio("เลือกหมวดหมู่หุ้น", ["portfolio", "watchlist"])
-
+category_filter = st.radio("เลือกหมวดหมู่", ["portfolio", "watchlist"])
 filtered_stocks = [s for s in stocks if s.category == category_filter]
 
 for stock in filtered_stocks:
@@ -112,25 +104,25 @@ for stock in filtered_stocks:
         if not stock.news:
             stock.news = fetch_news(stock.ticker)
 
-        positive_news = [n for n in stock.news if n.sentiment == "positive"]
-        negative_news = [n for n in stock.news if n.sentiment == "negative"]
+        # 🎯 แสดงข่าวแยกบวก-ลบ
+        good_news = [n for n in stock.news if n.sentiment == "positive"]
+        bad_news = [n for n in stock.news if n.sentiment == "negative"]
 
         col1, col2 = st.columns(2)
-
         with col1:
-            st.subheader("🟢 ข่าวเชิงบวก")
-            for news in positive_news:
-                st.markdown(f"**{news.title}**")
-                st.caption(f"*{news.published_at}*")
+            st.markdown("### ✅ ข่าวบวก")
+            for news in good_news:
+                st.markdown(f"**🟢 {news.title}**")
+                st.caption(news.published_at)
                 st.write(news.translated)
                 st.markdown(f"[🔗 อ่านต่อ]({news.url})")
                 st.markdown("---")
 
         with col2:
-            st.subheader("🔴 ข่าวเชิงลบ")
-            for news in negative_news:
-                st.markdown(f"**{news.title}**")
-                st.caption(f"*{news.published_at}*")
+            st.markdown("### ⚠️ ข่าวลบ")
+            for news in bad_news:
+                st.markdown(f"**🔴 {news.title}**")
+                st.caption(news.published_at)
                 st.write(news.translated)
                 st.markdown(f"[🔗 อ่านต่อ]({news.url})")
                 st.markdown("---")
