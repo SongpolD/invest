@@ -5,15 +5,12 @@ import requests
 from textblob import TextBlob
 from dataclasses import dataclass, field
 from typing import List, Literal
-from transformers import pipeline
 
-# 🔑 ใส่ NewsAPI key ของคุณ
+# ----🔐 API KEYS ----
 NEWS_API_KEY = "1947c97709734759b81277ccb7ee8152"
+HUGGINGFACE_API_KEY = st.secrets["HUGGINGFACE_API_KEY"]
 
-# 🧠 โหลดโมเดลแปลภาษาจาก HuggingFace
-translator = pipeline("translation", model="Helsinki-NLP/opus-mt-en-th")
-
-# 📦 ประเภทข้อมูล
+# ----📌 Type Definitions ----
 Sentiment = Literal["positive", "negative", "neutral"]
 Impact = Literal["high", "medium", "low"]
 Category = Literal["portfolio", "watchlist"]
@@ -22,11 +19,11 @@ Category = Literal["portfolio", "watchlist"]
 class NewsItem:
     title: str
     content: str
+    translated: str
     sentiment: Sentiment
     impact: Impact
     url: str
     published_at: str
-    translated_summary: str = ""
 
 @dataclass
 class Stock:
@@ -35,7 +32,7 @@ class Stock:
     category: Category
     news: List[NewsItem] = field(default_factory=list)
 
-# 💬 วิเคราะห์ความรู้สึก
+# ----🧠 Sentiment Analysis ----
 def analyze_sentiment(text: str) -> Sentiment:
     blob = TextBlob(text)
     polarity = blob.sentiment.polarity
@@ -46,17 +43,27 @@ def analyze_sentiment(text: str) -> Sentiment:
     else:
         return "neutral"
 
-# 🌐 แปลข้อความเป็นภาษาไทย
+# ----🌐 Translation via HuggingFace API ----
 def translate_to_thai(text: str) -> str:
+    if not text.strip():
+        return ""
     try:
-        if not text.strip():
-            return ""
-        translated = translator(text, max_length=200)[0]["translation_text"]
-        return translated
-    except Exception as e:
+        headers = {
+            "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {"inputs": text}
+        response = requests.post(
+            "https://api-inference.huggingface.co/models/Helsinki-NLP/opus-mt-en-th",
+            headers=headers,
+            json=payload
+        )
+        result = response.json()
+        return result[0]["translation_text"] if isinstance(result, list) else "⚠️ แปลไม่ได้"
+    except Exception:
         return "⚠️ แปลไม่ได้"
 
-# 📰 ดึงข่าว
+# ----📰 Fetch News ----
 def fetch_news(ticker: str) -> List[NewsItem]:
     url = "https://newsapi.org/v2/everything"
     params = {
@@ -72,20 +79,19 @@ def fetch_news(ticker: str) -> List[NewsItem]:
     for article in articles:
         content = article.get("description") or ""
         sentiment = analyze_sentiment(content)
-        summary = translate_to_thai(content)
-
+        translated = translate_to_thai(content)
         news_items.append(NewsItem(
             title=article["title"],
             content=content,
+            translated=translated,
             sentiment=sentiment,
             impact="medium",
             url=article["url"],
-            published_at=article["publishedAt"],
-            translated_summary=summary
+            published_at=article["publishedAt"]
         ))
     return news_items
 
-# 📈 รายชื่อหุ้น
+# ----📊 Stocks to Track ----
 stocks: List[Stock] = [
     Stock(ticker="AAPL", name="Apple Inc.", category="portfolio"),
     Stock(ticker="TSLA", name="Tesla Inc.", category="watchlist"),
@@ -93,11 +99,12 @@ stocks: List[Stock] = [
     Stock(ticker="MSFT", name="Microsoft Corp.", category="portfolio"),
 ]
 
-# 🖼️ Streamlit UI
+# ----🖥️ Streamlit UI ----
 st.set_page_config(page_title="📈 Vibe Stock Dashboard", layout="wide")
-st.title("📊 Vibe Stock Tracker Dashboard")
+st.title("📈 Vibe Stock Tracker Dashboard")
 
-category_filter = st.radio("เลือกประเภทหุ้น", ["portfolio", "watchlist"])
+category_filter = st.radio("เลือกหมวดหมู่หุ้น", ["portfolio", "watchlist"])
+
 filtered_stocks = [s for s in stocks if s.category == category_filter]
 
 for stock in filtered_stocks:
@@ -105,20 +112,25 @@ for stock in filtered_stocks:
         if not stock.news:
             stock.news = fetch_news(stock.ticker)
 
-        # 📤 แยกซ้าย-ขวา: ข่าวดี/ร้าย
+        positive_news = [n for n in stock.news if n.sentiment == "positive"]
+        negative_news = [n for n in stock.news if n.sentiment == "negative"]
+
         col1, col2 = st.columns(2)
 
-        for news in stock.news:
-            block = col1 if news.sentiment == "positive" else col2
-            sentiment_color = {
-                "positive": "🟢",
-                "negative": "🔴",
-                "neutral": "🟡"
-            }.get(news.sentiment, "⚪")
-
-            with block:
-                st.markdown(f"**{sentiment_color} {news.title}**")
+        with col1:
+            st.subheader("🟢 ข่าวเชิงบวก")
+            for news in positive_news:
+                st.markdown(f"**{news.title}**")
                 st.caption(f"*{news.published_at}*")
-                st.markdown(f"**🗣️ แปล:** {news.translated_summary}")
-                st.markdown(f"[🔗 อ่านข่าวต้นฉบับ]({news.url})")
+                st.write(news.translated)
+                st.markdown(f"[🔗 อ่านต่อ]({news.url})")
+                st.markdown("---")
+
+        with col2:
+            st.subheader("🔴 ข่าวเชิงลบ")
+            for news in negative_news:
+                st.markdown(f"**{news.title}**")
+                st.caption(f"*{news.published_at}*")
+                st.write(news.translated)
+                st.markdown(f"[🔗 อ่านต่อ]({news.url})")
                 st.markdown("---")
