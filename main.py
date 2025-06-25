@@ -7,8 +7,8 @@ from typing import List, Literal
 from dataclasses import dataclass, field
 
 # ✅ ตั้งค่า API KEY
-openai.api_key = st.secrets["OPENAI_API_KEY"]  # อ่านจาก streamlit secrets
-NEWS_API_KEY = st.secrets["NEWS_API_KEY"]      # อย่าลืมเพิ่มเข้า secrets ด้วยนะ
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+NEWS_API_KEY = st.secrets["NEWS_API_KEY"]  # ใช้ NewsAPI (https://newsapi.org)
 
 # ✅ ประเภทข้อมูล
 Sentiment = Literal["positive", "negative", "neutral"]
@@ -34,6 +34,9 @@ class Stock:
 
 # ✅ ใช้ OpenAI วิเคราะห์อารมณ์ + แปลไทย
 def analyze_and_translate(content: str) -> tuple[str, Sentiment]:
+    if not content.strip():
+        return "❌ ไม่มีเนื้อหาข่าวให้แปล", "neutral"
+    
     prompt = f"""
 ข่าว: {content}
 
@@ -55,7 +58,7 @@ def analyze_and_translate(content: str) -> tuple[str, Sentiment]:
         translated = result.split("แปลไทย:")[1].split("อารมณ์:")[0].strip()
         sentiment = result.split("อารมณ์:")[1].strip().lower()
         return translated, sentiment
-    except Exception as e:
+    except Exception:
         return "❌ แปลไม่สำเร็จ", "neutral"
 
 # ✅ ดึงข่าวจาก NewsAPI พร้อม fallback ถ้าไม่มี description
@@ -66,7 +69,7 @@ def fetch_news(ticker: str) -> List[NewsItem]:
         "sortBy": "publishedAt",
         "language": "en",
         "apiKey": NEWS_API_KEY,
-        "pageSize": 5,
+        "pageSize": 5,  # ดึงแค่ 5 ข่าว
     }
     response = requests.get(url, params=params)
     articles = response.json().get("articles", [])
@@ -74,7 +77,7 @@ def fetch_news(ticker: str) -> List[NewsItem]:
     for article in articles:
         # 🔁 ใช้ description → content → title
         content = article.get("description") or article.get("content") or article.get("title") or ""
-        if not content:
+        if not content.strip():
             continue  # ข้ามถ้าไม่มีเนื้อหาจริงๆ
 
         translated, sentiment = analyze_and_translate(content)
