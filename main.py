@@ -1,25 +1,23 @@
 # main.py
 
-# ─────────────────────────────────────────────
-# 📦 Import libraries
-import streamlit as st                    # สำหรับสร้าง dashboard UI
-import requests                           # สำหรับเรียก API ดึงข่าว
-from textblob import TextBlob            # สำหรับวิเคราะห์ sentiment
-from dataclasses import dataclass, field # สำหรับสร้าง class data แบบอัตโนมัติ
-from typing import List, Literal          # สำหรับกำหนดประเภทข้อมูล
+import streamlit as st
+import requests
+from textblob import TextBlob
+from dataclasses import dataclass, field
+from typing import List, Literal
+from transformers import pipeline
 
-from transformers import pipeline         # HuggingFace summarizer
-from googletrans import Translator        # ใช้แปลภาษา (ฟรี)
+# 🔑 ใส่ NewsAPI key ของคุณ
+NEWS_API_KEY = "1947c97709734759b81277ccb7ee8152"
 
-# ─────────────────────────────────────────────
-# 📌 Define custom data types
+# 🧠 โหลดโมเดลแปลภาษาจาก HuggingFace
+translator = pipeline("translation", model="Helsinki-NLP/opus-mt-en-th")
 
-# ค่าที่สามารถเป็นได้ของแต่ละประเภท
+# 📦 ประเภทข้อมูล
 Sentiment = Literal["positive", "negative", "neutral"]
 Impact = Literal["high", "medium", "low"]
 Category = Literal["portfolio", "watchlist"]
 
-# ข้อมูลข่าว 1 ชิ้น
 @dataclass
 class NewsItem:
     title: str
@@ -28,10 +26,8 @@ class NewsItem:
     impact: Impact
     url: str
     published_at: str
-    summary_en: str = ""
-    summary_th: str = ""
+    translated_summary: str = ""
 
-# ข้อมูลหุ้น 1 ตัว
 @dataclass
 class Stock:
     ticker: str
@@ -39,18 +35,7 @@ class Stock:
     category: Category
     news: List[NewsItem] = field(default_factory=list)
 
-# ─────────────────────────────────────────────
-# 🧠 Load AI models
-
-# ใช้โมเดล HuggingFace สำหรับสรุปข่าว (ภาษาอังกฤษ)
-summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
-
-# ใช้ Google Translate (ฟรี) สำหรับแปลอังกฤษ → ไทย
-translator = Translator()
-
-# ─────────────────────────────────────────────
-# 💬 วิเคราะห์อารมณ์ข่าว (sentiment)
-
+# 💬 วิเคราะห์ความรู้สึก
 def analyze_sentiment(text: str) -> Sentiment:
     blob = TextBlob(text)
     polarity = blob.sentiment.polarity
@@ -61,64 +46,46 @@ def analyze_sentiment(text: str) -> Sentiment:
     else:
         return "neutral"
 
-# ─────────────────────────────────────────────
-# ✂️ สรุปข่าวเป็นข้อความสั้น
-
-def summarize_text(text: str) -> str:
-    try:
-        summary = summarizer(text, max_length=60, min_length=25, do_sample=False)
-        return summary[0]['summary_text']
-    except Exception as e:
-        return "⚠️ สรุปไม่ได้: " + str(e)
-
-# ─────────────────────────────────────────────
-# 🌐 แปลสรุปข่าวเป็นภาษาไทย
-
+# 🌐 แปลข้อความเป็นภาษาไทย
 def translate_to_thai(text: str) -> str:
     try:
-        result = translator.translate(text, dest='th')
-        return result.text
+        if not text.strip():
+            return ""
+        translated = translator(text, max_length=200)[0]["translation_text"]
+        return translated
     except Exception as e:
-        return "⚠️ แปลไม่ได้: " + str(e)
+        return "⚠️ แปลไม่ได้"
 
-# ─────────────────────────────────────────────
-# 📰 ดึงข่าวจาก NewsAPI
-
+# 📰 ดึงข่าว
 def fetch_news(ticker: str) -> List[NewsItem]:
     url = "https://newsapi.org/v2/everything"
     params = {
         "q": ticker,
         "sortBy": "publishedAt",
         "language": "en",
-        "apiKey": "1947c97709734759b81277ccb7ee8152",  # 👈 ใช้ API Key ของคุณ
-        "pageSize": 3,
+        "apiKey": NEWS_API_KEY,
+        "pageSize": 5,
     }
-
     response = requests.get(url, params=params)
     articles = response.json().get("articles", [])
-
     news_items = []
     for article in articles:
         content = article.get("description") or ""
         sentiment = analyze_sentiment(content)
-        summary_en = summarize_text(content)
-        summary_th = translate_to_thai(summary_en)
+        summary = translate_to_thai(content)
 
         news_items.append(NewsItem(
             title=article["title"],
             content=content,
             sentiment=sentiment,
-            impact="medium",  # คุณสามารถปรับ logic การวัด impact เพิ่มภายหลังได้
+            impact="medium",
             url=article["url"],
             published_at=article["publishedAt"],
-            summary_en=summary_en,
-            summary_th=summary_th
+            translated_summary=summary
         ))
     return news_items
 
-# ─────────────────────────────────────────────
-# 📊 รายชื่อหุ้นของคุณ
-
+# 📈 รายชื่อหุ้น
 stocks: List[Stock] = [
     Stock(ticker="AAPL", name="Apple Inc.", category="portfolio"),
     Stock(ticker="TSLA", name="Tesla Inc.", category="watchlist"),
@@ -126,31 +93,32 @@ stocks: List[Stock] = [
     Stock(ticker="MSFT", name="Microsoft Corp.", category="portfolio"),
 ]
 
-# ─────────────────────────────────────────────
-# 🖥️ สร้างหน้า UI ด้วย Streamlit
-
+# 🖼️ Streamlit UI
 st.set_page_config(page_title="📈 Vibe Stock Dashboard", layout="wide")
-st.title("📈 Vibe Stock Tracker Dashboard")
+st.title("📊 Vibe Stock Tracker Dashboard")
 
-# ให้ผู้ใช้เลือกหมวดหมู่หุ้น (watchlist / portfolio)
-category_filter = st.radio("เลือกกลุ่มหุ้น", ["portfolio", "watchlist"])
-
+category_filter = st.radio("เลือกประเภทหุ้น", ["portfolio", "watchlist"])
 filtered_stocks = [s for s in stocks if s.category == category_filter]
 
-# แสดงผลข่าวของหุ้นแต่ละตัว
 for stock in filtered_stocks:
     with st.expander(f"{stock.name} ({stock.ticker})"):
         if not stock.news:
             stock.news = fetch_news(stock.ticker)
 
-        # แบ่ง layout ซ้าย = ข่าวดี / ขวา = ข่าวร้าย
+        # 📤 แยกซ้าย-ขวา: ข่าวดี/ร้าย
         col1, col2 = st.columns(2)
 
         for news in stock.news:
             block = col1 if news.sentiment == "positive" else col2
+            sentiment_color = {
+                "positive": "🟢",
+                "negative": "🔴",
+                "neutral": "🟡"
+            }.get(news.sentiment, "⚪")
+
             with block:
-                st.markdown(f"**📰 {news.title}**")
+                st.markdown(f"**{sentiment_color} {news.title}**")
                 st.caption(f"*{news.published_at}*")
-                st.write(news.summary_th)  # แสดงข่าวที่แปลไทยแล้ว
-                st.markdown(f"[🔗 อ่านต่อ]({news.url})")
+                st.markdown(f"**🗣️ แปล:** {news.translated_summary}")
+                st.markdown(f"[🔗 อ่านข่าวต้นฉบับ]({news.url})")
                 st.markdown("---")
