@@ -1,13 +1,13 @@
 # main.py
 
+import streamlit as st
 import requests
+from textblob import TextBlob
 from dataclasses import dataclass, field
 from typing import List, Literal
-from textblob import TextBlob
-import datetime
 
-# 🔐 ใส่ API KEY ของคุณจาก NewsAPI.org
-NEWS_API_KEY = "1947c97709734759b81277ccb7ee8152"
+# ตั้งค่า NewsAPI Key
+NEWS_API_KEY = "1947c97709734759b81277ccb7ee8152"  # ← ใส่ API key ของคุณตรงนี้
 
 # ประเภทข้อมูล
 Sentiment = Literal["positive", "negative", "neutral"]
@@ -29,11 +29,10 @@ class Stock:
     name: str
     category: Category
     news: List[NewsItem] = field(default_factory=list)
-    prediction: str = ""
 
 def analyze_sentiment(text: str) -> Sentiment:
     blob = TextBlob(text)
-    polarity = blob.sentiment.polarity  # ค่าระหว่าง -1.0 ถึง +1.0
+    polarity = blob.sentiment.polarity
     if polarity > 0.2:
         return "positive"
     elif polarity < -0.2:
@@ -41,7 +40,7 @@ def analyze_sentiment(text: str) -> Sentiment:
     else:
         return "neutral"
 
-def fetch_real_news(ticker: str) -> List[NewsItem]:
+def fetch_news(ticker: str) -> List[NewsItem]:
     url = "https://newsapi.org/v2/everything"
     params = {
         "q": ticker,
@@ -52,7 +51,6 @@ def fetch_real_news(ticker: str) -> List[NewsItem]:
     }
     response = requests.get(url, params=params)
     articles = response.json().get("articles", [])
-    
     news_items = []
     for article in articles:
         content = article.get("description") or ""
@@ -67,19 +65,36 @@ def fetch_real_news(ticker: str) -> List[NewsItem]:
         ))
     return news_items
 
+# รายชื่อหุ้น
 stocks: List[Stock] = [
     Stock(ticker="AAPL", name="Apple Inc.", category="portfolio"),
     Stock(ticker="TSLA", name="Tesla Inc.", category="watchlist"),
+    Stock(ticker="NVDA", name="NVIDIA Corporation", category="watchlist"),
+    Stock(ticker="MSFT", name="Microsoft Corp.", category="portfolio"),
 ]
 
-for stock in stocks:
-    stock.news = fetch_real_news(stock.ticker)
+# Streamlit UI
+st.set_page_config(page_title="📈 Vibe Stock Dashboard", layout="wide")
+st.title("📈 Vibe Stock Tracker Dashboard")
 
-def display_summary(stock: Stock):
-    print(f"\n[{stock.category.upper()}] {stock.name} ({stock.ticker})")
-    for news in stock.news:
-        print(f"- {news.title} [{news.sentiment}]")
-        print(f"  {news.url}")
+category_filter = st.radio("Choose stock category", ["portfolio", "watchlist"])
 
-for stock in stocks:
-    display_summary(stock)
+filtered_stocks = [s for s in stocks if s.category == category_filter]
+
+for stock in filtered_stocks:
+    with st.expander(f"{stock.name} ({stock.ticker})"):
+        if not stock.news:
+            stock.news = fetch_news(stock.ticker)
+
+        for news in stock.news:
+            sentiment_color = {
+                "positive": "🟢",
+                "negative": "🔴",
+                "neutral": "🟡"
+            }.get(news.sentiment, "⚪")
+
+            st.markdown(f"**{sentiment_color} {news.title}**")
+            st.caption(f"*{news.published_at}*")
+            st.write(news.content)
+            st.markdown(f"[🔗 Read more]({news.url})")
+            st.markdown("---")
