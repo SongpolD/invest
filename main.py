@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 from typing import List, Literal
 import datetime
 
-# Type definitions
+# ประเภทข้อมูลที่ใช้
 Sentiment = Literal["positive", "negative", "neutral"]
 Impact = Literal["high", "medium", "low"]
 Category = Literal["portfolio", "watchlist"]
 
-# Data classes
+# โครงสร้างข่าว
 @dataclass
 class NewsItem:
     title: str
@@ -19,6 +19,7 @@ class NewsItem:
     url: str
     published_at: str
 
+# โครงสร้างหุ้น
 @dataclass
 class Stock:
     ticker: str
@@ -27,7 +28,7 @@ class Stock:
     news: List[NewsItem] = field(default_factory=list)
     prediction: str = ""
 
-# Mock function to simulate news fetching
+# จำลองการดึงข่าว (mock)
 def fetch_mock_news(ticker: str) -> List[NewsItem]:
     return [
         NewsItem(
@@ -48,17 +49,17 @@ def fetch_mock_news(ticker: str) -> List[NewsItem]:
         )
     ]
 
-# Portfolio and Watchlist
+# หุ้นใน watchlist และ portfolio
 stocks: List[Stock] = [
     Stock(ticker="AAPL", name="Apple Inc.", category="portfolio"),
     Stock(ticker="TSLA", name="Tesla Inc.", category="watchlist"),
 ]
 
-# Fetch news and update stocks
+# ดึงข่าวใส่แต่ละหุ้น
 for stock in stocks:
     stock.news = fetch_mock_news(stock.ticker)
 
-# Output summary
+# แสดงผลสรุป
 def display_summary(stock: Stock):
     print(f"\n[{stock.category.upper()}] {stock.name} ({stock.ticker})")
     for news in stock.news:
