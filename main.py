@@ -23,16 +23,26 @@ def get_stock_price_and_indicators(ticker):
     }
 
 def get_news_for_ticker(ticker):
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    articles = newsapi.get_everything(
-        q=ticker,
-        from_param=today,
-        to=today,
-        language="en",
-        sort_by="relevancy",
-        page=1,
-    )
-    return articles["articles"][:8]  # return top 8 for filtering later
+    query_map = {
+        "AAPL": "Apple",
+        "TSLA": "Tesla",
+        "NVDA": "Nvidia",
+        "GOOGL": "Google",
+        "MSFT": "Microsoft"
+    }
+    query_term = query_map.get(ticker, ticker)
+
+    try:
+        articles = newsapi.get_top_headlines(
+            q=query_term,
+            language="en",
+            category="business",
+            page_size=10
+        )
+        return articles["articles"][:8]
+    except Exception as e:
+        st.error(f"❌ ดึงข่าวไม่สำเร็จ: {str(e)}")
+        return []
 
 def analyze_sentiment_and_summarize(article):
     prompt = f"""
