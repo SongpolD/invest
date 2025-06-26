@@ -11,8 +11,8 @@ import yfinance as yf
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 newsapi = NewsApiClient(api_key=st.secrets["NEWS_API_KEY"])
 
-PORT_STOCKS = ["AAPL", "TSLA", "NVDA"]  # Example port
-WATCHLIST = ["GOOGL", "MSFT"]
+PORT_STOCKS = ["ABBV", "PFE", "NVDA", "O", "MSFT", "TSM", "RKLB", "GOOGL", "RXRX"]  # Portfolio
+WATCHLIST = ["AMZN", "ARM", "ASML", "JEPQ"]  # Watchlist
 ALL_TICKERS = list(set(PORT_STOCKS + WATCHLIST))
 
 # ========== Utility Functions ==========
@@ -89,12 +89,24 @@ def get_news_for_ticker(ticker):
 
     # ลองเรียก API
     try:
+        # ลองเรียก API
+    try:
         query_map = {
-            "AAPL": "Apple Inc",
-            "TSLA": "Tesla",
-            "NVDA": "Nvidia", 
+            # Portfolio stocks
+            "ABBV": "AbbVie pharmaceutical",
+            "PFE": "Pfizer pharmaceutical", 
+            "NVDA": "Nvidia",
+            "O": "Realty Income REIT",
+            "MSFT": "Microsoft",
+            "TSM": "Taiwan Semiconductor",
+            "RKLB": "Rocket Lab",
             "GOOGL": "Google Alphabet",
-            "MSFT": "Microsoft"
+            "RXRX": "Recursion Pharmaceuticals",
+            # Watchlist stocks
+            "AMZN": "Amazon",
+            "ARM": "ARM Holdings",
+            "ASML": "ASML semiconductor",
+            "JEPQ": "JPMorgan ETF"
         }
         query_term = query_map.get(ticker, ticker)
 
@@ -126,14 +138,63 @@ def get_alternative_news(ticker):
     
     # ✅ ใช้ RSS Feed หรือ Web Scraping เป็น Alternative
     company_map = {
-        "AAPL": {"name": "Apple", "site": "apple.com"},
-        "TSLA": {"name": "Tesla", "site": "tesla.com"},
-        "NVDA": {"name": "Nvidia", "site": "nvidia.com"},
-        "GOOGL": {"name": "Google", "site": "google.com"},
-        "MSFT": {"name": "Microsoft", "site": "microsoft.com"}
+        # Portfolio
+        "ABBV": {"name": "AbbVie", "sector": "Healthcare/Pharma"},
+        "PFE": {"name": "Pfizer", "sector": "Healthcare/Pharma"},
+        "NVDA": {"name": "Nvidia", "sector": "Technology/AI"},
+        "O": {"name": "Realty Income", "sector": "REIT/Real Estate"},
+        "MSFT": {"name": "Microsoft", "sector": "Technology"},
+        "TSM": {"name": "Taiwan Semiconductor", "sector": "Technology/Semiconductor"},
+        "RKLB": {"name": "Rocket Lab", "sector": "Aerospace/Space"},
+        "GOOGL": {"name": "Google/Alphabet", "sector": "Technology"},
+        "RXRX": {"name": "Recursion Pharmaceuticals", "sector": "Biotech/AI"},
+        # Watchlist
+        "AMZN": {"name": "Amazon", "sector": "E-commerce/Cloud"},
+        "ARM": {"name": "ARM Holdings", "sector": "Semiconductor/IP"},
+        "ASML": {"name": "ASML", "sector": "Semiconductor Equipment"},
+        "JEPQ": {"name": "JPMorgan Equity Premium Income ETF", "sector": "ETF/Income"}
     }
+
+# เพิ่ม company_map ที่ global level เพื่อให้ selectbox ใช้ได้
+company_map = {
+    # Portfolio
+    "ABBV": {"name": "AbbVie", "sector": "Healthcare/Pharma"},
+    "PFE": {"name": "Pfizer", "sector": "Healthcare/Pharma"},
+    "NVDA": {"name": "Nvidia", "sector": "Technology/AI"},
+    "O": {"name": "Realty Income", "sector": "REIT/Real Estate"},
+    "MSFT": {"name": "Microsoft", "sector": "Technology"},
+    "TSM": {"name": "Taiwan Semiconductor", "sector": "Technology/Semiconductor"},
+    "RKLB": {"name": "Rocket Lab", "sector": "Aerospace/Space"},
+    "GOOGL": {"name": "Google/Alphabet", "sector": "Technology"},
+    "RXRX": {"name": "Recursion Pharmaceuticals", "sector": "Biotech/AI"},
+    # Watchlist
+    "AMZN": {"name": "Amazon", "sector": "E-commerce/Cloud"},
+    "ARM": {"name": "ARM Holdings", "sector": "Semiconductor/IP"},
+    "ASML": {"name": "ASML", "sector": "Semiconductor Equipment"},
+    "JEPQ": {"name": "JPMorgan Equity Premium Income ETF", "sector": "ETF/Income"}
+}
     
-    company_info = company_map.get(ticker, {"name": ticker, "site": "finance.yahoo.com"})
+    company_info = company_map.get(ticker, {"name": ticker, "sector": "General"})
+    
+    # ข่าวตัวอย่างที่มีเนื้อหาดี แบ่งตาม sector
+    if "Pharma" in company_info["sector"] or "Healthcare" in company_info["sector"]:
+        sector_context = "อุตสาหกรรมยาและการแพทย์"
+        sector_trend = "การพัฒนายาใหม่และการอนุมัติจาก FDA"
+    elif "Technology" in company_info["sector"] or "AI" in company_info["sector"]:
+        sector_context = "เทคโนโลยีและ AI"
+        sector_trend = "นวัตกรรม AI และการแข่งขันในตลาดเทค"
+    elif "Semiconductor" in company_info["sector"]:
+        sector_context = "อุตสาหกรรมเซมิคอนดักเตอร์"
+        sector_trend = "ความต้องการชิปและสงครามการค้า"
+    elif "REIT" in company_info["sector"]:
+        sector_context = "อสังหาริมทรัพย์และ REIT"
+        sector_trend = "อัตราดอกเบี้ยและตลาดอสังหาฯ"
+    elif "ETF" in company_info["sector"]:
+        sector_context = "กองทุน ETF"
+        sector_trend = "กลยุทธ์การลงทุนและการจ่ายเงินปันผล"
+    else:
+        sector_context = "ตลาดหุ้นโดยรวม"
+        sector_trend = "แนวโน้มเศรษฐกิจโลก"
     
     # ข่าวตัวอย่างที่มีเนื้อหาดี
     alternative_news = [
@@ -270,7 +331,8 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-ticker = st.selectbox("🎯 เลือกหุ้นในพอร์ตหรือ Watchlist:", ALL_TICKERS, index=0)
+ticker = st.selectbox("🎯 เลือกหุ้นในพอร์ตหรือ Watchlist:", ALL_TICKERS, index=0, 
+                     format_func=lambda x: f"{'📊 ' if x in PORT_STOCKS else '👁️ '}{x} - {company_map.get(x, {}).get('name', x)}")
 
 # Control buttons
 col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
