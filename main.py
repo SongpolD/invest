@@ -23,6 +23,7 @@ def get_stock_price_and_indicators(ticker):
     }
 
 def get_news_for_ticker(ticker):
+    # ✅ Mapping ชื่อหุ้นให้เข้าใจง่ายขึ้น
     query_map = {
         "AAPL": "Apple",
         "TSLA": "Tesla",
@@ -32,17 +33,34 @@ def get_news_for_ticker(ticker):
     }
     query_term = query_map.get(ticker, ticker)
 
+    # ✅ ใช้ session_state cache เพื่อลดการเรียกซ้ำ
+    cache_key = f"news_cache_{ticker}"
+    if cache_key in st.session_state:
+        return st.session_state[cache_key]
+
     try:
+        # เรียก API จริง
         articles = newsapi.get_top_headlines(
             q=query_term,
             language="en",
             category="business",
             page_size=10
         )
-        return articles["articles"][:8]
+        st.session_state[cache_key] = articles["articles"][:8]  # แคชไว้ใน session
+        return st.session_state[cache_key]
     except Exception as e:
-        st.error(f"❌ ดึงข่าวไม่สำเร็จ: {str(e)}")
+        st.error(f"❌ ดึงข่าวไม่สำเร็จ (debug): {str(e)}")
         return []
+
+@st.cache_data(ttl=1800)  # cache 30 นาที
+def get_news_cached(query_term):
+    return newsapi.get_top_headlines(
+        q=query_term,
+        language="en",
+        category="business",
+        page_size=10
+    )
+
 
 def analyze_sentiment_and_summarize(article):
     prompt = f"""
