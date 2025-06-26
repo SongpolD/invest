@@ -89,8 +89,6 @@ def get_news_for_ticker(ticker):
 
     # ลองเรียก API
     try:
-        # ลองเรียก API
-    try:
         query_map = {
             # Portfolio stocks
             "ABBV": "AbbVie pharmaceutical",
@@ -136,7 +134,7 @@ def get_news_for_ticker(ticker):
 def get_alternative_news(ticker):
     """ข่าวจากแหล่งอื่นเมื่อ News API หมด"""
     
-    # ✅ ใช้ RSS Feed หรือ Web Scraping เป็น Alternative
+    # เพิ่ม company_map ที่ global level เพื่อให้ selectbox ใช้ได้
     company_map = {
         # Portfolio
         "ABBV": {"name": "AbbVie", "sector": "Healthcare/Pharma"},
@@ -154,25 +152,6 @@ def get_alternative_news(ticker):
         "ASML": {"name": "ASML", "sector": "Semiconductor Equipment"},
         "JEPQ": {"name": "JPMorgan Equity Premium Income ETF", "sector": "ETF/Income"}
     }
-
-# เพิ่ม company_map ที่ global level เพื่อให้ selectbox ใช้ได้
-company_map = {
-    # Portfolio
-    "ABBV": {"name": "AbbVie", "sector": "Healthcare/Pharma"},
-    "PFE": {"name": "Pfizer", "sector": "Healthcare/Pharma"},
-    "NVDA": {"name": "Nvidia", "sector": "Technology/AI"},
-    "O": {"name": "Realty Income", "sector": "REIT/Real Estate"},
-    "MSFT": {"name": "Microsoft", "sector": "Technology"},
-    "TSM": {"name": "Taiwan Semiconductor", "sector": "Technology/Semiconductor"},
-    "RKLB": {"name": "Rocket Lab", "sector": "Aerospace/Space"},
-    "GOOGL": {"name": "Google/Alphabet", "sector": "Technology"},
-    "RXRX": {"name": "Recursion Pharmaceuticals", "sector": "Biotech/AI"},
-    # Watchlist
-    "AMZN": {"name": "Amazon", "sector": "E-commerce/Cloud"},
-    "ARM": {"name": "ARM Holdings", "sector": "Semiconductor/IP"},
-    "ASML": {"name": "ASML", "sector": "Semiconductor Equipment"},
-    "JEPQ": {"name": "JPMorgan Equity Premium Income ETF", "sector": "ETF/Income"}
-}
     
     company_info = company_map.get(ticker, {"name": ticker, "sector": "General"})
     
@@ -230,6 +209,25 @@ company_map = {
     
     st.info("📰 ใช้ข้อมูลข่าวจาก Alternative Sources เนื่องจาก News API Quota หมด")
     return alternative_news
+
+# เพิ่ม company_map ที่ global level เพื่อให้ selectbox ใช้ได้
+company_map = {
+    # Portfolio
+    "ABBV": {"name": "AbbVie", "sector": "Healthcare/Pharma"},
+    "PFE": {"name": "Pfizer", "sector": "Healthcare/Pharma"},
+    "NVDA": {"name": "Nvidia", "sector": "Technology/AI"},
+    "O": {"name": "Realty Income", "sector": "REIT/Real Estate"},
+    "MSFT": {"name": "Microsoft", "sector": "Technology"},
+    "TSM": {"name": "Taiwan Semiconductor", "sector": "Technology/Semiconductor"},
+    "RKLB": {"name": "Rocket Lab", "sector": "Aerospace/Space"},
+    "GOOGL": {"name": "Google/Alphabet", "sector": "Technology"},
+    "RXRX": {"name": "Recursion Pharmaceuticals", "sector": "Biotech/AI"},
+    # Watchlist
+    "AMZN": {"name": "Amazon", "sector": "E-commerce/Cloud"},
+    "ARM": {"name": "ARM Holdings", "sector": "Semiconductor/IP"},
+    "ASML": {"name": "ASML", "sector": "Semiconductor Equipment"},
+    "JEPQ": {"name": "JPMorgan Equity Premium Income ETF", "sector": "ETF/Income"}
+}
 
 @st.cache_data(ttl=3600)  # Cache 1 ชั่วโมง
 def analyze_sentiment_and_summarize(article):
